@@ -205,7 +205,6 @@ def _resize_subtract_mean(image, insize, rgb_mean):
     image -= rgb_mean
     return image.transpose(2, 0, 1)
 
-
 class preproc(object):
 
     def __init__(self, img_dim, rgb_means):
@@ -221,7 +220,7 @@ class preproc(object):
 
         image_t, boxes_t, labels_t, landm_t, pad_image_flag = _crop(image, boxes, labels, landm, self.img_dim)
         image_t = _distort(image_t)
-        image_t = _pad_to_square(image_t,self.rgb_means, pad_image_flag)
+        image_t = _pad_to_square(image,self.rgb_means, pad_image_flag)
         image_t, boxes_t, landm_t = _mirror(image_t, boxes_t, landm_t)
         height, width, _ = image_t.shape
         image_t = _resize_subtract_mean(image_t, self.img_dim, self.rgb_means)
@@ -235,3 +234,39 @@ class preproc(object):
         targets_t = np.hstack((boxes_t, landm_t, labels_t))
 
         return image_t, targets_t
+    
+class test_preproc(object):
+
+    def __init__(self, img_dim, rgb_means):
+        self.img_dim = img_dim
+        self.rgb_means = rgb_means
+
+    def __call__(self, image, targets):
+        assert targets.shape[0] > 0, "this image does not have gt"
+
+        boxes = targets[:, :4].copy()
+        labels = targets[:, -1].copy()
+        landm = targets[:, 4:-1].copy()
+
+        # image_t, boxes_t, labels_t, landm_t, pad_image_flag = _crop(image, boxes, labels, landm, self.img_dim)
+        # image_t = _distort(image_t)
+        # image_t = _pad_to_square(image_t,self.rgb_means, pad_image_flag)
+        # image_t, boxes_t, landm_t = _mirror(image_t, boxes_t, landm_t)
+        height, width, _ = image.shape
+        # image_t = _resize_subtract_mean(image_t, self.img_dim, self.rgb_means)
+        
+        image = image.astype(np.float32)
+        image = image.transpose(2, 0, 1)
+        
+        boxes[:, 0::2] /= width
+        boxes[:, 1::2] /= height
+
+        landm[:, 0::2] /= width
+        landm[:, 1::2] /= height
+
+        labels_t = np.expand_dims(labels, 1)
+        targets_t = np.hstack((boxes, landm, labels_t))
+
+        return image, targets_t
+    
+

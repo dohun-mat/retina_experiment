@@ -6,7 +6,7 @@ import torch.backends.cudnn as cudnn
 import argparse
 from torch.utils.data import RandomSampler
 import torch.utils.data as data
-from data import WiderFaceDetection, detection_collate, split_dataset, preproc, cfg_mnet, cfg_re50, cfg_cnv2_tiny, cfg_cspresnet50
+from data import WiderFaceDetection, detection_collate, split_dataset, preproc,test_preproc, cfg_mnet, cfg_re50, cfg_cnv2_tiny, cfg_cspresnet50
 from layers.modules import MultiBoxLoss
 from layers.functions.prior_box import PriorBox
 import time
@@ -33,10 +33,20 @@ import numpy as np
 
 # args = parser.parse_args()
 
-def test(epoch, args, cfg, net, test_dataset, priors, criterion, val_loader, max_iter):
+def test(epoch, args, cfg, net, test_dataset, criterion, val_loader, max_iter):
     net.eval()
     
+
     for batch_idx, (images, targets) in enumerate(val_loader):
+        # print(images.shape)
+        _, _, im_height, im_width = images.shape
+        
+        priorbox = PriorBox(cfg, image_size = (im_height, im_width))
+    
+        with torch.no_grad():
+            priors = priorbox.forward()
+            priors = priors.cuda()
+        
         load_t0 = time.time()
         
         images = images.cuda(non_blocking=True)
@@ -55,23 +65,29 @@ def test(epoch, args, cfg, net, test_dataset, priors, criterion, val_loader, max
         
 
         # 출력 및 WandB 로깅
-        if int(os.environ['LOCAL_RANK']) == 0:
-            print(f'test || Epoch: {epoch}/{max_iter} || Batch: {batch_idx+1}/{len(val_loader)} || Loc : {loss_l.item():.4f} Cla : {loss_c.item():.4f} Landm : {loss_landm.item():.4f} Total_Loss: {loss.item():.4f} || batch_time : {batch_time:.4f} || ETA : {str(datetime.timedelta(seconds=eta))}')
-            wandb.log({"test_epoch": epoch, "test_total_loss": loss.item(), "test_loss_l": loss_l.item(),
-                       "test_loss_c": loss_c.item(), "test_loss_landm": loss_landm.item()})
+        # if int(os.environ['LOCAL_RANK']) == 0:
+        print(f'test || Epoch: {epoch}/{max_iter} || Batch: {batch_idx+1}/{len(val_loader)} || Loc : {loss_l.item():.4f} Cla : {loss_c.item():.4f} Landm : {loss_landm.item():.4f} Total_Loss: {loss.item():.4f} || batch_time : {batch_time:.4f} || ETA : {str(datetime.timedelta(seconds=eta))}')
+        wandb.log({"test_epoch": epoch, "test_total_loss": loss.item(), "test_loss_l": loss_l.item(),
+                    "test_loss_c": loss_c.item(), "test_loss_landm": loss_landm.item()})
                     
     
 
 
-def train_model(max_iter, epoch, net, data_loader, priors, optimizer, criterion, scheduler, cfg):
+def train_model(max_iter, epoch, net, data_loader, optimizer, criterion, scheduler, cfg):
     net.train()  # 모델을 학습 모드로 설정
-    
+    priorbox = PriorBox(cfg, image_size=(cfg['image_size'], cfg['image_size']))
+    with torch.no_grad():
+        priors = priorbox.forward()
+        priors = priors.cuda()
+
     for batch_idx, (images, targets) in enumerate(data_loader):
         load_t0 = time.time()
         
         images = images.cuda(non_blocking=True)
         targets = [anno.cuda(non_blocking=True) for anno in targets]
 
+        # print('images_shape')
+        # print(images.shape)
         # Forward
         out = net(images)
 
@@ -167,10 +183,10 @@ def start(args):
     criterion = MultiBoxLoss(num_classes, 0.35, True, 0, True, 7, 0.35, False)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=50)
 
-    priorbox = PriorBox(cfg, image_size=(img_dim, img_dim))
-    with torch.no_grad():
-        priors = priorbox.forward()
-        priors = priors.cuda()
+    # priorbox = PriorBox(cfg, image_size=(img_dim, img_dim))
+    # with torch.no_grad():
+    #     priors = priorbox.forward()
+    #     priors = priors.cuda()
 
     
     # net.train()
@@ -193,7 +209,6 @@ def start(args):
         shuffle=True,
         random_state=42  # 재현성을 위해 시드 설정
     )
-
     # 학습 세트와 검증 세트 생성
     train_set = WiderFaceDetection(
         txt_path=training_dataset,
@@ -202,9 +217,10 @@ def start(args):
     )
     val_set = WiderFaceDetection(
         txt_path=training_dataset,
-        preproc=None,
+        preproc=test_preproc(img_dim, rgb_mean),
         indices=val_indices
     )
+
     # print(len(train_set))
     # print(len(val_set))
 
@@ -213,19 +229,19 @@ def start(args):
     data_loader = data.DataLoader(train_set, batch_size=batch_size, num_workers=num_workers, collate_fn=detection_collate)
 
     # val_sampler = RandomSampler(val_set)
-    val_loader = data.DataLoader(val_set, batch_size=16, num_workers=num_workers, collate_fn=detection_collate)
+    val_loader = data.DataLoader(val_set, batch_size=1, num_workers=num_workers, collate_fn=detection_collate)
     
     
     for epoch in range(start_epoch, max_iter+1):
-        train_model(max_iter = max_iter, epoch = epoch, net = net, data_loader = data_loader, priors = priors, optimizer = optimizer, criterion = criterion, scheduler = scheduler, cfg = cfg)
+        train_model(max_iter = max_iter, epoch = epoch, net = net, data_loader = data_loader, optimizer = optimizer, criterion = criterion, scheduler = scheduler, cfg = cfg)
 
         # 지정된 주기마다 테스트 평가
         if epoch % 10 == 0:
-            test(args = args, epoch = epoch, net = net, test_dataset = test_dataset, criterion = criterion, priors = priors, cfg = cfg, val_loader = val_loader, max_iter = max_iter)
+            test(args = args, epoch = epoch, net = net, test_dataset = test_dataset, criterion = criterion, cfg = cfg, val_loader = val_loader, max_iter = max_iter)
 
         # 모델 체크포인트 저장
-        if epoch % 10 == 0 and int(os.environ['LOCAL_RANK']) == 0:
-            torch.save(net.module.state_dict(), save_folder + cfg['name'] + '_epoch_' + str(epoch) + '.pth')
+        if epoch % 10 == 0:
+            torch.save(net.state_dict(), save_folder + cfg['name'] + '_epoch_' + str(epoch) + '.pth')
 
     # def adjust_learning_rate(optimizer, gamma, epoch, step_index, iteration, epoch_size):
     #     """Sets the learning rate
@@ -246,7 +262,7 @@ if __name__ == '__main__':
     parser.add_argument('--training_dataset', default='../../../data/widerface/train/label.txt', help='Training dataset directory')
     parser.add_argument('--test_dataset', default='../../../data/widerface/val/wider_val.txt', type=str, help='dataset path')
     parser.add_argument('--network', default='mobile0.25', help='Backbone network mobile0.25 or resnet50')
-    parser.add_argument('--num_workers', default=24, type=int, help='Number of workers used in dataloading')
+    parser.add_argument('--num_workers', default=64, type=int, help='Number of workers used in dataloading')
     parser.add_argument('--lr', '--learning-rate', default=1e-3, type=float, help='initial learning rate')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
     parser.add_argument('--resume_net', default=None, help='resume net for retraining')

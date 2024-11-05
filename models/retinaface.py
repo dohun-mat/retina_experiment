@@ -213,12 +213,12 @@ class RetinaFace(nn.Module):
         
         # print(len(out))
         # print('out')
-        # print(out[0].shape)
+        # print(model_out[0].shape)
         # print(model_out[1].shape)
         # print(model_out[2].shape)
         # print(model_out[3].shape)
 
-        out = [model_out[1], model_out[2], model_out[3]] 
+        out = [model_out[0], model_out[1], model_out[2]] 
         # FPN
         # fpn = self.fpn(out)
         bifpn = self.bifpn(out)

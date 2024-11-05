@@ -70,7 +70,7 @@ cfg_cspresnet50 = {
     'loc_weight': 2.0,
     'gpu_train': True,
     'batch_size': 24,
-    'ngpu': 0,
+    'ngpu': 1,
     'epoch': 300,
     'decay1': 70,
     'decay2': 90,

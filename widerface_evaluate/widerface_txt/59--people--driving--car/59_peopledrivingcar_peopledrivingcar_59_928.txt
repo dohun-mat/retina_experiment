@@ -1,0 +1,4 @@
+59_peopledrivingcar_peopledrivingcar_59_928
+2
+450 174 110 152 0.9996495 
+117 243 448 550 0.030359577 

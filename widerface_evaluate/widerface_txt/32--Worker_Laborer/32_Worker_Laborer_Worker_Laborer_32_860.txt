@@ -1,0 +1,3 @@
+32_Worker_Laborer_Worker_Laborer_32_860
+1
+305 386 433 504 0.99961793 

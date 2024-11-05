@@ -1,0 +1,4 @@
+8_Election_Campain_Election_Campaign_8_529
+2
+284 132 174 251 0.9984654 
+716 643 30 31 0.115496844 

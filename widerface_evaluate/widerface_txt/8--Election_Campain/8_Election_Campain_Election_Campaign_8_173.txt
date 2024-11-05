@@ -1,0 +1,4 @@
+8_Election_Campain_Election_Campaign_8_173
+2
+237 35 201 287 0.99977666 
+732 142 183 251 0.9995134 

@@ -1,0 +1,4 @@
+8_Election_Campain_Election_Campaign_8_266
+2
+632 229 116 161 0.9993943 
+275 101 148 232 0.9949492 

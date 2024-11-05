@@ -1,0 +1,4 @@
+47_Matador_Bullfighter_Matador_Bullfighter_47_566
+2
+692 280 63 68 0.9987142 
+598 357 16 19 0.022087362 

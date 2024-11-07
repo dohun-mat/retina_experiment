@@ -6,7 +6,7 @@ import torch.backends.cudnn as cudnn
 import argparse
 from torch.utils.data import RandomSampler
 import torch.utils.data as data
-from data import WiderFaceDetection, detection_collate, split_dataset, preproc,test_preproc, cfg_mnet, cfg_re50, cfg_cnv2_tiny, cfg_cspresnet50
+from data import WiderFaceDetection, detection_collate, split_dataset, preproc,test_preproc, cfg_mnet, cfg_re_bifpn, cfg_re_fpn, cfg_cnv2_tiny, cfg_cspres50_bifpn
 from layers.modules import MultiBoxLoss
 from layers.functions.prior_box import PriorBox
 import time
@@ -71,9 +71,22 @@ def test(epoch, args, cfg, net, test_dataset, criterion, val_loader, max_iter):
                     "test_loss_c": loss_c.item(), "test_loss_landm": loss_landm.item()})
                     
     
+def adjust_learning_rate(args, optimizer, gamma, epoch, step_index, iteration, epoch_size):
+        """Sets the learning rate
+        # Adapted from PyTorch Imagenet example:
+        # https://github.com/pytorch/examples/blob/master/imagenet/main.py
+        """
+        warmup_epoch = -1
+        if epoch <= warmup_epoch:
+            lr = 1e-6 + (args.lr - 1e-6) * iteration / (epoch_size * warmup_epoch)
+        else:
+            lr = args.lr * (gamma ** (step_index))
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
+        return lr
 
 
-def train_model(max_iter, epoch, net, data_loader, optimizer, criterion, scheduler, cfg):
+def train_model(max_iter, epoch, net, data_loader, optimizer, criterion, cfg, args, stepvalues, step_index):
     net.train()  # 모델을 학습 모드로 설정
     priorbox = PriorBox(cfg, image_size=(cfg['image_size'], cfg['image_size']))
     with torch.no_grad():
@@ -81,6 +94,11 @@ def train_model(max_iter, epoch, net, data_loader, optimizer, criterion, schedul
         priors = priors.cuda()
 
     for batch_idx, (images, targets) in enumerate(data_loader):
+        
+        if epoch in stepvalues:
+            step_index += 1
+        lr = adjust_learning_rate(args = args, optimizer = optimizer, gamma = args.gamma, epoch = epoch, step_index = step_index, iteration = epoch*len(data_loader), epoch_size = len(data_loader))
+        
         load_t0 = time.time()
         
         images = images.cuda(non_blocking=True)
@@ -98,11 +116,13 @@ def train_model(max_iter, epoch, net, data_loader, optimizer, criterion, schedul
         loss.backward()
         optimizer.step()
 
+        
         # ETA 및 학습 속도 계산
         load_t1 = time.time()
         batch_time = load_t1 - load_t0
         eta = int(batch_time * (max_iter - epoch) * len(data_loader))
         lr = optimizer.param_groups[0]['lr']
+        
         
         # 출력 및 WandB 로깅
         # if int(os.environ['LOCAL_RANK']) == 0:
@@ -110,7 +130,7 @@ def train_model(max_iter, epoch, net, data_loader, optimizer, criterion, schedul
         wandb.log({"train_epoch": epoch, "train_total_loss": loss.item(), "train_loss_l": loss_l.item(),
                     "train_loss_c": loss_c.item(), "train_loss_landm": loss_landm.item()})
     # 학습률 업데이트
-    scheduler.step()
+    # scheduler.step()
 
 def start(args):
     # 현재 날짜를 "YYYY-MM-DD" 형식으로 포맷팅
@@ -125,12 +145,14 @@ def start(args):
     cfg = None
     if args.network == "mobile0.25":
         cfg = cfg_mnet
-    elif args.network == "resnet50":
-        cfg = cfg_re50
+    elif args.network == "resnet50_fpn":
+        cfg = cfg_re_fpn
+    elif args.network == "resnet50_bifpn":
+        cfg = cfg_re_bifpn
     elif args.network == "convnet_v2_tiny":
         cfg = cfg_cnv2_tiny
-    elif args.network == "cspresnet50":    
-        cfg = cfg_cspresnet50
+    elif args.network == "cspresnet50_bifpn":    
+        cfg = cfg_cspres50_bifpn
 
     rgb_mean = (104, 117, 123) # bgr order
     num_classes = 2
@@ -176,17 +198,11 @@ def start(args):
 
     cudnn.benchmark = True
 
-    # print("##################")
 
-    optimizer = optim.AdamW(net.parameters(), lr=initial_lr, betas=(0.9, 0.999), weight_decay=weight_decay)
-    # optimizer = optim.SGD(net.parameters(), lr=initial_lr, momentum=momentum, weight_decay=weight_decay)
+    # optimizer = optim.AdamW(net.parameters(), lr=initial_lr, betas=(0.9, 0.999), weight_decay=weight_decay)
+    optimizer = optim.SGD(net.parameters(), lr=initial_lr, momentum=momentum, weight_decay=weight_decay)
     criterion = MultiBoxLoss(num_classes, 0.35, True, 0, True, 7, 0.35, False)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=50)
-
-    # priorbox = PriorBox(cfg, image_size=(img_dim, img_dim))
-    # with torch.no_grad():
-    #     priors = priorbox.forward()
-    #     priors = priors.cuda()
+    
 
     
     # net.train()
@@ -194,46 +210,27 @@ def start(args):
     print('Loading Dataset...')
 
     max_iter = max_epoch
-
-
     if args.resume_epoch > 0:
-        start_iter = args.resume_epoch
+        start_epoch = args.resume_epoch
     else:
-        start_iter = 0
+        start_epoch = 0
     
-    dataset = WiderFaceDetection(training_dataset)
-    
-    train_indices, val_indices = train_test_split(
-        np.arange(len(dataset)),
-        train_size=0.8,
-        shuffle=True,
-        random_state=42  # 재현성을 위해 시드 설정
-    )
-    # 학습 세트와 검증 세트 생성
-    train_set = WiderFaceDetection(
-        txt_path=training_dataset,
-        preproc=preproc(img_dim, rgb_mean),
-        indices=train_indices
-    )
-    val_set = WiderFaceDetection(
-        txt_path=training_dataset,
-        preproc=test_preproc(img_dim, rgb_mean),
-        indices=val_indices
-    )
 
-    # print(len(train_set))
-    # print(len(val_set))
-
-   
-    # sampler = RandomSampler(train_set)
-    data_loader = data.DataLoader(train_set, batch_size=batch_size, num_workers=num_workers, collate_fn=detection_collate)
-
-    # val_sampler = RandomSampler(val_set)
-    val_loader = data.DataLoader(val_set, batch_size=1, num_workers=num_workers, collate_fn=detection_collate)
+    dataset = WiderFaceDetection(training_dataset, preproc(img_dim, rgb_mean))
+    train_set, val_set = split_dataset(dataset, split_ratio=0.8)
     
+    sampler = RandomSampler(train_set)
+    data_loader = data.DataLoader(train_set, batch_size=batch_size, num_workers=num_workers, collate_fn=detection_collate, sampler = sampler)
+
+    val_sampler = RandomSampler(val_set)
+    val_loader = data.DataLoader(val_set, batch_size=16, num_workers=num_workers, collate_fn=detection_collate, sampler = val_sampler)  
     
+    stepvalues = (cfg['decay1'] , cfg['decay2'])
+    step_index = 0 
+
+
     for epoch in range(start_epoch, max_iter+1):
-        train_model(max_iter = max_iter, epoch = epoch, net = net, data_loader = data_loader, optimizer = optimizer, criterion = criterion, scheduler = scheduler, cfg = cfg)
+        train_model(args = args, max_iter = max_iter, epoch = epoch, net = net, data_loader = data_loader, optimizer = optimizer, criterion = criterion, cfg = cfg, stepvalues = stepvalues, step_index = step_index)
 
         # 지정된 주기마다 테스트 평가
         if epoch % 10 == 0:

@@ -4,7 +4,7 @@ import argparse
 import torch
 import torch.backends.cudnn as cudnn
 import numpy as np
-from data import cfg_mnet, cfg_re50, cfg_cnv2_tiny
+from data import cfg_mnet, cfg_re50, cfg_cnv2_tiny, cfg_cspresnet50
 from layers.functions.prior_box import PriorBox
 from utils.nms.py_cpu_nms import py_cpu_nms
 import cv2
@@ -20,7 +20,7 @@ parser.add_argument('--network', default='resnet50', help='Backbone network mobi
 parser.add_argument('--origin_size', default=True, type=str, help='Whether use origin image size to evaluate')
 parser.add_argument('--save_folder', default='./widerface_evaluate/widerface_txt/', type=str, help='Dir to save txt results')
 parser.add_argument('--cpu', action="store_true", default=False, help='Use cpu inference')
-parser.add_argument('--dataset_folder', default='./data/widerface/val/images/', type=str, help='dataset path')
+parser.add_argument('--dataset_folder', default='../../../data/widerface/val/images/', type=str, help='dataset path')
 parser.add_argument('--confidence_threshold', default=0.02, type=float, help='confidence_threshold')
 parser.add_argument('--top_k', default=5000, type=int, help='top_k')
 parser.add_argument('--nms_threshold', default=0.4, type=float, help='nms_threshold')
@@ -76,6 +76,8 @@ if __name__ == '__main__':
         cfg = cfg_re50
     elif args.network == "convnet_v2_tiny":
         cfg = cfg_cnv2_tiny
+    elif args.network == "cspresnet50":
+        cfg = cfg_cspresnet50
         
     # net and model
     net = RetinaFace(cfg=cfg, phase = 'test')

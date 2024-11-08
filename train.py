@@ -33,20 +33,11 @@ import numpy as np
 
 # args = parser.parse_args()
 
-def test(epoch, args, cfg, net, test_dataset, criterion, val_loader, max_iter):
+def test(epoch, args, cfg, net, test_dataset, criterion, val_loader, max_iter, priors):
     net.eval()
     
 
     for batch_idx, (images, targets) in enumerate(val_loader):
-        # print(images.shape)
-        _, _, im_height, im_width = images.shape
-        
-        priorbox = PriorBox(cfg, image_size = (im_height, im_width))
-    
-        with torch.no_grad():
-            priors = priorbox.forward()
-            priors = priors.cuda()
-        
         load_t0 = time.time()
         
         images = images.cuda(non_blocking=True)
@@ -86,13 +77,9 @@ def adjust_learning_rate(args, optimizer, gamma, epoch, step_index, iteration, e
         return lr
 
 
-def train_model(max_iter, epoch, net, data_loader, optimizer, criterion, cfg, args, stepvalues, step_index):
+def train_model(max_iter, epoch, net, data_loader, optimizer, criterion, cfg, args, stepvalues, step_index, priors):
     net.train()  # 모델을 학습 모드로 설정
-    priorbox = PriorBox(cfg, image_size=(cfg['image_size'], cfg['image_size']))
-    with torch.no_grad():
-        priors = priorbox.forward()
-        priors = priors.cuda()
-
+    
     for batch_idx, (images, targets) in enumerate(data_loader):
         
         if epoch in stepvalues:
@@ -164,7 +151,7 @@ def start(args):
     momentum = args.momentum
     weight_decay = args.weight_decay
     initial_lr = args.lr
-    gamma = args.gamma
+    # gamma = args.gamma
     training_dataset = args.training_dataset
     test_dataset = args.test_dataset
     save_folder = args.save_folder
@@ -212,11 +199,15 @@ def start(args):
         start_epoch = args.resume_epoch
     else:
         start_epoch = 0
-    
+
+    priorbox = PriorBox(cfg, image_size=(img_dim, img_dim))
+    with torch.no_grad():
+        priors = priorbox.forward()
+        priors = priors.cuda()
 
     dataset = WiderFaceDetection(training_dataset, preproc(img_dim, rgb_mean))
     train_set, val_set = split_dataset(dataset, split_ratio=0.8)
-    
+        
     # 시드가 지정된 generator 생성
     train_generator = torch.Generator().manual_seed(42)
     val_generator = torch.Generator().manual_seed(42)
@@ -232,11 +223,11 @@ def start(args):
 
 
     for epoch in range(start_epoch, max_iter+1):
-        train_model(args = args, max_iter = max_iter, epoch = epoch, net = net, data_loader = data_loader, optimizer = optimizer, criterion = criterion, cfg = cfg, stepvalues = stepvalues, step_index = step_index)
+        train_model(args = args, priors = priors, max_iter = max_iter, epoch = epoch, net = net, data_loader = data_loader, optimizer = optimizer, criterion = criterion, cfg = cfg, stepvalues = stepvalues, step_index = step_index)
 
         # 지정된 주기마다 테스트 평가
         if epoch % 10 == 0:
-            test(args = args, epoch = epoch, net = net, test_dataset = test_dataset, criterion = criterion, cfg = cfg, val_loader = val_loader, max_iter = max_iter)
+            test(args = args, priors = priors, epoch = epoch, net = net, test_dataset = test_dataset, criterion = criterion, cfg = cfg, val_loader = val_loader, max_iter = max_iter)
 
         # 모델 체크포인트 저장
         if epoch % 10 == 0:
@@ -258,10 +249,10 @@ def start(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Retinaface Training')
-    parser.add_argument('--training_dataset', default='../../../data/widerface/train/label.txt', help='Training dataset directory')
-    parser.add_argument('--test_dataset', default='../../../data/widerface/val/wider_val.txt', type=str, help='dataset path')
+    parser.add_argument('--training_dataset', default='/home/dhkim/data/widerface/train/label.txt', help='Training dataset directory')
+    parser.add_argument('--test_dataset', default='/home/dhkim/data/widerface/val/wider_val.txt', type=str, help='dataset path')
     parser.add_argument('--network', default='mobile0.25', help='Backbone network mobile0.25 or resnet50')
-    parser.add_argument('--num_workers', default=64, type=int, help='Number of workers used in dataloading')
+    parser.add_argument('--num_workers', default=32, type=int, help='Number of workers used in dataloading')
     parser.add_argument('--lr', '--learning-rate', default=1e-3, type=float, help='initial learning rate')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
     parser.add_argument('--resume_net', default=None, help='resume net for retraining')

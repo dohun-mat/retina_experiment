@@ -160,7 +160,7 @@ cython_debug/
 
 # Exclude specific folders
 results/
-widerface_evaluate/
+widerface_evaluate/widerface_txt
 wandb/
 weights/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear

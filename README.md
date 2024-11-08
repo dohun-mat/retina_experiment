@@ -39,7 +39,7 @@ Link: from [google cloud](https://drive.google.com/open?id=11UGV3nbVv1x9IC--_tK3
 ## 평가
 1. txt 파일 생성
 ```Shell
-python test_widerface.py --trained_model ./weights/resnet50_fpn_Final.pth --network resnet50_fpn.25
+python test_widerface.py --trained_model ./weights/resnet50_fpn_Final.pth --network resnet50_fpn
 ```
 2. txt 결과를 평가합니다. 데모는 [Here](https://github.com/wondervictor/WiderFace-Evaluation) 에서 제공됩니다. 
 ```Shell

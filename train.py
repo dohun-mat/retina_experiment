@@ -149,8 +149,6 @@ def start(args):
         cfg = cfg_re_fpn
     elif args.network == "resnet50_bifpn":
         cfg = cfg_re_bifpn
-    elif args.network == "convnet_v2_tiny":
-        cfg = cfg_cnv2_tiny
     elif args.network == "cspresnet50_bifpn":    
         cfg = cfg_cspres50_bifpn
 
@@ -219,11 +217,15 @@ def start(args):
     dataset = WiderFaceDetection(training_dataset, preproc(img_dim, rgb_mean))
     train_set, val_set = split_dataset(dataset, split_ratio=0.8)
     
-    sampler = RandomSampler(train_set)
-    data_loader = data.DataLoader(train_set, batch_size=batch_size, num_workers=num_workers, collate_fn=detection_collate, sampler = sampler)
+    # 시드가 지정된 generator 생성
+    train_generator = torch.Generator().manual_seed(42)
+    val_generator = torch.Generator().manual_seed(42)
 
+    sampler = RandomSampler(train_set)
     val_sampler = RandomSampler(val_set)
-    val_loader = data.DataLoader(val_set, batch_size=16, num_workers=num_workers, collate_fn=detection_collate, sampler = val_sampler)  
+    
+    data_loader = data.DataLoader(train_set, batch_size=batch_size, num_workers=num_workers, collate_fn=detection_collate, sampler = sampler, generator = train_generator)
+    val_loader = data.DataLoader(val_set, batch_size=16, num_workers=num_workers, collate_fn=detection_collate, sampler = val_sampler, generator = val_generator)  
     
     stepvalues = (cfg['decay1'] , cfg['decay2'])
     step_index = 0 

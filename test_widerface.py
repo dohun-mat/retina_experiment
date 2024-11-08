@@ -4,7 +4,7 @@ import argparse
 import torch
 import torch.backends.cudnn as cudnn
 import numpy as np
-from data import cfg_mnet, cfg_re50, cfg_cnv2_tiny, cfg_cspresnet50
+from data import cfg_mnet, cfg_re_fpn, cfg_re_bifpn, cfg_cspres50_bifpn
 from layers.functions.prior_box import PriorBox
 from utils.nms.py_cpu_nms import py_cpu_nms
 import cv2
@@ -72,12 +72,13 @@ if __name__ == '__main__':
     cfg = None
     if args.network == "mobile0.25":
         cfg = cfg_mnet
-    elif args.network == "resnet50":
-        cfg = cfg_re50
-    elif args.network == "convnet_v2_tiny":
-        cfg = cfg_cnv2_tiny
-    elif args.network == "cspresnet50":
-        cfg = cfg_cspresnet50
+    elif args.network == "resnet50_fpn":
+        cfg = cfg_re_fpn
+    elif args.network == "resnet50_bifpn":
+        cfg = cfg_re_bifpn
+    elif args.network == "cspresnet50_bifpn":    
+        cfg = cfg_cspres50_bifpn
+    
         
     # net and model
     net = RetinaFace(cfg=cfg, phase = 'test')

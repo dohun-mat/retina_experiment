@@ -5,6 +5,7 @@ from models.mobile_bifpn import mobile_bifpn as mobile_bifpn
 from models.resnet50_FPN import Resnet50_fpn as Resnet50_fpn
 from models.resnet50_bifpn import Resnet50_bifpn as Resnet50_bifpn
 from models.cspresnet50_bifpn import cspResnet50_bifpn as cspResnet50_bifpn
+from models.resnet152_fpn import Resnet152_fpn as Resnet152_fpn
 
 class RetinaFace(nn.Module):
     def __init__(self, cfg = None, phase = 'train'):
@@ -23,6 +24,8 @@ class RetinaFace(nn.Module):
             self.model_result = Resnet50_bifpn(cfg=cfg, phase = phase)
         elif cfg['name'] == 'cspresnet50_bifpn':
             self.model_result = cspResnet50_bifpn(cfg=cfg, phase = phase)
+        elif cfg['name'] == 'resnet152_fpn':
+            self.model_result = Resnet152_fpn(cfg=cfg, phase = phase)
             
     def forward(self, x):
         return self.model_result(x)

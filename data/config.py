@@ -100,3 +100,23 @@ cfg_cspres50_bifpn = {
     'in_channel': 128,
     'out_channel': 256
 }
+
+cfg_res152_fpn = {
+    'name': 'resnet152_fpn',
+    'min_sizes': [[16, 25.40], [32, 50.8], [64, 101.59], [128, 203.19], [256,406.37]],
+    'steps': [4, 8, 16, 32, 64],
+    'variance': [0.1, 0.2],
+    'clip': False,
+    'loc_weight': 2.0,
+    'gpu_train': True,
+    'batch_size': 12,
+    'ngpu': 1,
+    'epoch': 300,
+    'decay1': 70,
+    'decay2': 90,
+    'image_size': 640,
+    'pretrain': True,
+    'return_layers': {'layer1' : 1, 'layer2': 2, 'layer3': 3, 'layer4': 4},
+    'in_channel': 256,
+    'out_channel': 256
+}
